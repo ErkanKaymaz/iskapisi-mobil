@@ -61,6 +61,85 @@ export const authService = {
     const response = await api.post('/mobil/hesap/giris', { email, sifre });
     return response.data;
   },
+
+  // --- AKILLI ŞİFRE KOD GÖNDERME ---
+  forgotPassword: async (email) => {
+    const params = new URLSearchParams();
+    params.append('email', email);
+
+    console.log("📨 Mail isteği atılıyor:", email);
+
+    try {
+      // Backend form verisi (x-www-form-urlencoded) bekliyor
+      const response = await fetch(`${BASE_URL}sifre-kod-gonder`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: params.toString(),
+      });
+
+      // Gelen cevabın URL'ini ve içeriğini alıyoruz
+      const currentUrl = response.url;
+      const htmlText = await response.text(); 
+      
+      console.log("🔍 Sunucu Dönüş URL:", currentUrl);
+
+      // --- KESİN MANTIK KONTROLÜ ---
+
+      // 1. BAŞARI: Eğer URL 'sifre-yenile' içeriyorsa -> KESİN BAŞARILI
+      if (currentUrl && currentUrl.includes('sifre-yenile')) {
+         return true; 
+      }
+
+      // 2. BAŞARI (Alternatif): Eğer gelen HTML içinde "kod" girme alanı varsa -> BAŞARILI
+      // (Bazen URL değişmeyebilir ama sayfa içeriği değişir)
+      if (htmlText.includes('name="kod"') || htmlText.includes('name="yeniSifre"')) {
+         return true;
+      }
+
+      // 3. HATA: Eğer URL hala 'sifre-kod-gonder' veya 'sifre-iste' ise
+      // VE başarı şartları sağlanmadıysa -> DEMEK Kİ KULLANICI YOK!
+      if (currentUrl.includes('sifre-kod-gonder') || currentUrl.includes('sifre-iste')) {
+          console.log("❌ Kullanıcı bulunamadı (URL değişmedi)");
+          throw new Error('Bu e-posta adresi sistemde kayıtlı değil.');
+      }
+
+      // 4. HATA: Açıkça hata parametresi varsa
+      if (currentUrl.includes('error')) {
+          throw new Error('Bu e-posta adresi sistemde kayıtlı değil.');
+      }
+
+      // Hiçbir şarta uymuyorsa genel hata ver
+      throw new Error('İşlem başarısız. Lütfen bilgilerinizi kontrol edin.');
+
+    } catch (error) {
+      console.log("❌ API Hatası:", error.message);
+      throw error; // Hatayı ekrana basması için fırlat
+    }
+  },
+  // ... diğer kodlar aynı ...
+  // --- DÜZELTİLMİŞ ŞİFRE DEĞİŞTİRME ---
+  resetPassword: async (email, code, newPassword) => {
+    const params = new URLSearchParams();
+    params.append('email', email);
+    params.append('kod', code);
+    params.append('yeniSifre', newPassword);
+
+    const response = await fetch(`${BASE_URL}sifre-degistir`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: params.toString(),
+    });
+
+    if (response.url && response.url.includes('giris')) {
+       return true;
+    }
+
+    throw new Error('Girdiğiniz kod hatalı!');
+  },
   register: async (kullaniciData) => {
     const response = await api.post('/mobil/hesap/kayit', kullaniciData);
     return response.data;
